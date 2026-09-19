@@ -78,3 +78,40 @@ above: the plan as first drafted matched the spec's letter (no implemented
 tests) but I judged it under-shot what the task's evaluation criteria
 actually reward, and had it revised before any code was written — cheaper
 than discovering the gap in the finished submission.
+
+## Independent verification (a second AI review pass, done twice)
+Rather than trust the implementation session's own self-reported completeness,
+I had a separate AI session (different chat, with actual code execution —
+clone the repo, run install/test/typecheck/lint/build, read the source) audit
+the finished work against the task's 8 evaluation criteria before submitting.
+I did this twice: once right after implementation, and again after fixing
+what the first pass found and pushing — to confirm the fixes actually landed
+rather than assuming they did.
+
+**First pass** caught three mechanical/documentation issues (not architectural
+ones): `ai-journey/SKILL.md` was committed inside `ai-journey/` instead of
+`.claude/skills/jtl-senior-frontend-takehome/`; this file had its "Where I
+overrode it" section duplicated with a leftover `[TODO]`; and `toolchain.md`/
+`plan.md` cited an ambiguous "`prompts.md` entry #4" (the file has two
+independently-numbered lists, so "#4" pointed at two different prompts
+depending on which list a reader assumed).
+
+**Between passes**, I fixed the file location and the duplicate myself, and
+added the real, verbatim `AskUserQuestion` exchange as `prompts.md` entry 4.5
+(a genuine, specific record — the actual question, all three options offered,
+and why the "Recommended" option was overridden — rather than a paraphrase).
+
+**Second pass** re-cloned the pushed repo, re-ran the full pipeline (still
+green), and found the file-location and duplication issues genuinely fixed.
+It found one remaining loose end: `plan.md` still cited the ambiguous
+"entry #4" even after `judgment.md` had already been updated to the precise
+"entry 4.5" — a citation that didn't get updated everywhere it appeared the
+first time. Fixed by pointing `plan.md` at the same precise citation.
+Everything else — package boundaries, the optimistic-update implementation,
+accessibility/validation wiring — was re-confirmed against the actual source
+and the real test suite, not just re-read.
+
+I'm recording both passes, not only the clean second one, because "a second
+AI check found nothing" and "a second AI check caught something, I fixed it,
+and a third look confirmed the fix" are different strength claims — the
+second is the one actually demonstrated here.

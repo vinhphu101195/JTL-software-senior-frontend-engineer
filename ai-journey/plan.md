@@ -172,7 +172,8 @@ Before opening Claude Code, I used Claude (chat) to prepare:
 
 ## Package layout & build order actually used
 The approved plan above was followed closely, in the order given, with one
-addition made before implementation started (see `prompts.md` entry #4): a
+addition made before implementation started (see `prompts.md`, "Actual
+session prompts" item 4 and the verbatim exchange at entry 4.5): a
 "Testing" section was inserted between "Styling, validation, accessibility"
 and "Build order" — Vitest + React Testing Library configured once via
 `packages/shared/vitest.setup.ts`, one representative unit test per feature
