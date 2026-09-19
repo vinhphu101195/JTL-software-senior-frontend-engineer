@@ -1,3 +1,23 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Single source of truth for versions shared across multiple package.json
+# files, so bumping one doesn't risk drifting from the others. Only libraries
+# that actually appear in 2+ packages are listed here — a single-consumer
+# dependency (e.g. @tanstack/react-router, only used by apps/web) stays a
+# plain version in its own package.json.
+catalog:
+  react: ^18.3.1
+  react-dom: ^18.3.1
+  "@tanstack/react-query": ^5.59.0
+  jotai: ^2.10.0
+  zod: ^3.23.8
+  typescript: ^5.6.3
+  vitest: ^2.1.2
+  jsdom: ^25.0.1
+  "@types/react": ^18.3.11
+  "@types/react-dom": ^18.3.0
+  "@testing-library/react": ^16.0.1
+  "@testing-library/jest-dom": ^6.5.0
+  "@testing-library/user-event": ^14.5.2

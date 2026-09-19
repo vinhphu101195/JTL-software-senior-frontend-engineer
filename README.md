@@ -80,6 +80,20 @@ composition belongs: the app shell, not either feature package.
   `CreateTodoForm`, `ToDoList`) that compose them. I didn't force atoms/molecules
   layers inside the feature packages themselves — there wasn't enough generic,
   feature-agnostic UI there to warrant it.
+- **`react`/`@tanstack/react-query`/`jotai` are `peerDependencies` of the library
+  packages**, not plain `dependencies` — `packages/shared`, `packages/users`, and
+  `packages/todos` are only ever consumed by `apps/web`, which owns the single real
+  instance of each. Pinning a separate copy inside a library package risks two React
+  copies or two Jotai atom instances if a bundler doesn't dedupe perfectly; declaring
+  them as peers makes the host responsible instead. They're re-declared under each
+  package's own `devDependencies` so `pnpm --filter <pkg> test` still runs standalone.
+- **Shared version numbers live in one place**: `pnpm-workspace.yaml`'s `catalog:`
+  entry is the single source of truth for every dependency version that appears in
+  2+ `package.json` files (React, TanStack Query, Jotai, Zod, TypeScript, Vitest,
+  Testing Library, etc.); each package references it as `"react": "catalog:"` instead
+  of repeating the version string. A dependency used by only one package (e.g.
+  `@tanstack/react-router`, only in `apps/web`) stays a plain version there — the
+  catalog is for genuinely shared versions, not everything.
 
 ## Reflection
 

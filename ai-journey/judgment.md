@@ -115,3 +115,81 @@ I'm recording both passes, not only the clean second one, because "a second
 AI check found nothing" and "a second AI check caught something, I fixed it,
 and a third look confirmed the fix" are different strength claims — the
 second is the one actually demonstrated here.
+
+## Bug found after submission, by me, not by either AI pass: dependencies vs. peerDependencies
+
+Neither the implementation session nor either of the two independent AI
+review passes above caught this — I found it myself on a later manual
+re-read of `packages/*/package.json`, which is worth recording honestly
+rather than folding into the "independent verification" section above as if
+AI had already covered it.
+
+**The bug:** `packages/shared`, `packages/users`, and `packages/todos` are
+internal library packages — they're never run standalone, only consumed by
+`apps/web`. But their `package.json`s listed `react`, `@tanstack/react-query`,
+and `jotai` as plain `dependencies`. For a package whose whole point is to be
+imported by a host app that provides its own single instance of these
+libraries, that's wrong: `react`, `@tanstack/react-query` (its `QueryClient`
+context), and `jotai` (its atom/store identity) are all singleton-by-context
+libraries — if a library package pins its own copy as a hard dependency
+instead of trusting the host's, a bundler that doesn't dedupe perfectly can
+end up with two copies of `react` (the classic "Invalid hook call" error), two
+`QueryClientProvider` contexts that don't see each other's cache, or — most
+relevant to this specific app — a `jotai` atom instance in `packages/shared`
+that isn't `===` the instance the host's `Provider` is watching, silently
+breaking `selectedUserIdAtom` (the one cross-cutting state atom this whole
+task asked me to use deliberately). It happened not to bite here because
+`pnpm`'s workspace hoisting deduplicated everything by luck, not by
+correctness of the dependency graph — the kind of bug that stays invisible in
+a single-app monorepo and then breaks the moment one of these packages is
+consumed by a second app or published standalone.
+
+Also found while fixing this: `packages/shared` additionally listed
+`react-dom` as a hard dependency despite never importing it anywhere in
+`src/` — grepped to confirm. It was only ever needed by `@testing-library/react`
+during tests, so it didn't even belong as a runtime dependency, peer or
+otherwise, just a dev one.
+
+**The fix** (`packages/shared`, `packages/users`, `packages/todos`, all three
+`package.json`s):
+- `react`, `@tanstack/react-query`, `jotai` moved from `dependencies` to
+  `peerDependencies` (the host, `apps/web`, already declares matching real
+  `dependencies` for all three, so nothing downstream changed).
+- The same three re-added under `devDependencies` in each package, so
+  `pnpm --filter <pkg> test` still works standalone without relying on
+  hoisting from a sibling package.
+- `react-dom` in `packages/shared` moved out of `dependencies` entirely, into
+  `devDependencies` only (test-only, per the grep above).
+- `@jtl/shared` (workspace-internal) and `zod` (a plain utility library with
+  no context/singleton concerns) correctly stayed as ordinary `dependencies`
+  — not every dependency of a library package needs this treatment, only the
+  ones with shared runtime identity.
+- Verified after the change: `pnpm install` (no peer-dependency warnings,
+  since `apps/web` satisfies all three), `pnpm typecheck`, `pnpm test` (all 7
+  tests still green), and `pnpm --filter @jtl/web build` (production build
+  still succeeds) — the fix is inert for this repo's current single-app setup
+  by design, and only matters once a package boundary here is stressed by a
+  second consumer.
+
+**Why this is worth its own entry rather than a footnote:** it's a real gap
+in something I built and then had independently re-reviewed twice without it
+surfacing — a good reminder that "package boundaries" as an evaluation
+criterion isn't only about *import* boundaries (which both AI review passes
+did check) but also about *dependency* boundaries, which neither pass was
+prompted to look at.
+
+**Follow-up, same session:** once `react`/`@tanstack/react-query`/`jotai`
+were split into `peerDependencies` + `devDependencies`, I noticed the actual
+version strings (`^18.3.1`, `^5.59.0`, `^2.10.0`, etc.) were now duplicated
+across even more places than before — each library package's
+`peerDependencies` *and* its `devDependencies`, plus `apps/web`'s
+`dependencies`. I raised this myself ("it's not enough strictly for
+version... set the version in the package root?") and we settled on pnpm's
+built-in `catalog:` feature (`pnpm-workspace.yaml`) as the fix, since it's
+native to the package manager already in use rather than adding a new tool
+(e.g. syncpack) for a problem the workspace tooling already solves — see the
+README's "Other notable decisions" for what ended up catalogued and why
+single-consumer deps (like `@tanstack/react-router`) deliberately did not.
+This is the same shape as the peer-dependency bug above: a real correctness
+gap in the dependency graph, caught by re-reading `package.json` files rather
+than by running anything.
