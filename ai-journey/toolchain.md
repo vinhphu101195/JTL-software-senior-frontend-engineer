@@ -1,0 +1,11 @@
+# Toolchain
+
+| Tool | What it was for |
+|---|---|
+| Claude (chat, Claude.ai) | Pre-implementation planning: built a personal Claude Code skill library from my CV/tech stack, gap-checked it against this task's actual requirements, drafted and refined the exact prompt sequence used to drive Claude Code (including deliberately scoping down suggested patterns like DDD/compound components to fit the task's size). |
+| Claude Code (CLI) | Main implementation — Claude Sonnet 5, run in the project directory on Windows. |
+| Custom skill: jtl-senior-frontend-takehome | Kept the session aligned to this task's specific requirements, package boundary rules, and out-of-scope list throughout — loaded during planning and referenced when deciding what NOT to build (no CI, no real backend, no exhaustive test suite). |
+| Custom skill: spec-driven-bootstrap | Enforced the read → plan → confirm → implement workflow; plan was written to a plan file, approved via `ExitPlanMode`, then copied verbatim into `ai-journey/plan.md` before any code was touched. |
+| Custom skill: atomic-design-structure | Directly shaped the layout decision: generic atoms/molecules (`Button`, `Input`, `FormField`) live once in `packages/shared/src/components`, while `packages/users`/`packages/todos` mostly contain organisms — the skill's own guidance ("don't force every component into a layer") is why feature packages don't have their own near-empty `atoms/`/`molecules/` folders. |
+| claude-in-chrome (browser automation) | Used at the end to actually drive the running app in Chrome — create a user, create a to-do, confirm the Jotai-prefilled assignee field, confirm the resolved assignee name renders in the list, and confirm validation error UI — rather than relying only on `tsc`/lint/unit tests to claim the feature works. |
+| MCP servers | None used beyond the built-in claude-in-chrome browser automation tool listed above; no external MCP data sources were needed for this task. |
