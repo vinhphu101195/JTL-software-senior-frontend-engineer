@@ -1,0 +1,10 @@
+{
+  "extends": "@jtl/shared/tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["vitest/globals", "@testing-library/jest-dom"],
+    "paths": {
+      "@jtl/shared": ["../shared/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}
