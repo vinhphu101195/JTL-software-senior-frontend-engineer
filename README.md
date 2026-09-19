@@ -54,11 +54,20 @@ composition belongs: the app shell, not either feature package.
 ## Other notable decisions
 
 - **Jotai for one concern only**: `selectedUserIdAtom` lives in `packages/shared` (not
-  `packages/users`) because both `UserDetailPage` (sets it) and `CreateTodoForm` (reads
-  it to prefill the assignee field) need it, and the two feature packages can't share
-  state by importing each other. Everything else (form input state, mutation
-  pending/error state) stays local `useState`/React Query — Jotai isn't used as a
-  general-purpose store.
+  `packages/users`) because both `UserDetailPage` (sets it) and `CreateTodoForm`/
+  `HomePage` (read it to prefill the assignee/lookup fields) need it, and the two
+  feature packages can't share state by importing each other. Everything else (form
+  input state, mutation pending/error state) stays local `useState`/React Query —
+  Jotai isn't used as a general-purpose store.
+- **`useDefaultedFromAtom` (`packages/shared/src/hooks`)**: both `CreateTodoForm`'s
+  assignee field and `HomePage`'s "look up a user by ID" field need the same
+  behavior — default from `selectedUserIdAtom`, keep following it if it changes while
+  the field is mounted, but stop the moment the user types their own value. A plain
+  `useState(atomValue ?? "")` initializer only reads the atom once at mount and goes
+  stale after that; this hook re-syncs via a `useEffect` guarded by a `touched` ref.
+  Extracted into `packages/shared` once it was needed in a second place (both a
+  todos-package component and an apps/web page), per the same "promote after actual
+  reuse" rule the component layers follow — not written speculatively upfront.
 - **Optimistic create + rollback** (`packages/todos/src/hooks/useCreateTodo.ts`):
   `onMutate` snapshots the affected user's cached to-do list and inserts an optimistic
   item (id prefixed `optimistic-` so the UI can show a "Saving…" affordance);

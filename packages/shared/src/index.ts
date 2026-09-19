@@ -7,3 +7,4 @@ export type { InputProps } from "./components/atoms/Input/Input";
 export { FormField } from "./components/molecules/FormField/FormField";
 export type { FormFieldProps } from "./components/molecules/FormField/FormField";
 export { selectedUserIdAtom } from "./state/selectedUser";
+export { useDefaultedFromAtom } from "./hooks/useDefaultedFromAtom";

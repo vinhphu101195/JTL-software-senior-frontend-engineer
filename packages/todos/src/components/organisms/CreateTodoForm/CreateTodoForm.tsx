@@ -1,19 +1,17 @@
 import { useState, type FormEvent } from "react";
-import { useAtomValue } from "jotai";
-import { Button, FormField, Input, selectedUserIdAtom } from "@jtl/shared";
+import { Button, FormField, Input, selectedUserIdAtom, useDefaultedFromAtom } from "@jtl/shared";
 import { useCreateTodo } from "../../../hooks/useCreateTodo";
 import { createTodoSchema } from "./createTodoForm.schema";
 
 export function CreateTodoForm() {
-  const selectedUserId = useAtomValue(selectedUserIdAtom);
   const [title, setTitle] = useState("");
-  const [assigneeId, setAssigneeId] = useState(selectedUserId ?? "");
+  const assignee = useDefaultedFromAtom(selectedUserIdAtom);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const createTodo = useCreateTodo();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const result = createTodoSchema.safeParse({ title, assigneeId });
+    const result = createTodoSchema.safeParse({ title, assigneeId: assignee.value });
     if (!result.success) {
       const errors: Record<string, string> = {};
       for (const issue of result.error.issues) {
@@ -29,6 +27,9 @@ export function CreateTodoForm() {
     createTodo.mutate(result.data, {
       onSuccess: () => setTitle(""),
     });
+    // Next todo defaults back to whatever the atom currently holds, rather
+    // than staying pinned to whatever assignee was just typed/submitted.
+    assignee.reset();
   }
 
   return (
@@ -37,12 +38,7 @@ export function CreateTodoForm() {
         <Input name="title" value={title} onChange={(event) => setTitle(event.target.value)} required />
       </FormField>
       <FormField label="Assignee (user ID)" htmlFor="todo-assignee" error={fieldErrors.assigneeId}>
-        <Input
-          name="assigneeId"
-          value={assigneeId}
-          onChange={(event) => setAssigneeId(event.target.value)}
-          required
-        />
+        <Input name="assigneeId" value={assignee.value} onChange={assignee.onChange} required />
       </FormField>
       {createTodo.isError && (
         <p role="alert" className="text-sm text-red-600">

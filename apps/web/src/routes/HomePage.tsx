@@ -1,15 +1,15 @@
-import { useState, type FormEvent } from "react";
+import type { FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Button, FormField, Input } from "@jtl/shared";
+import { Button, FormField, Input, selectedUserIdAtom, useDefaultedFromAtom } from "@jtl/shared";
 
 export function HomePage() {
-  const [userId, setUserId] = useState("");
+  const userId = useDefaultedFromAtom(selectedUserIdAtom);
   const navigate = useNavigate();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!userId.trim()) return;
-    void navigate({ to: "/users/$userId", params: { userId: userId.trim() } });
+    if (!userId.value.trim()) return;
+    void navigate({ to: "/users/$userId", params: { userId: userId.value.trim() } });
   }
 
   return (
@@ -22,7 +22,7 @@ export function HomePage() {
       </div>
       <form onSubmit={handleSubmit} className="flex max-w-sm flex-col gap-4">
         <FormField label="Look up a user by ID" htmlFor="lookup-user-id">
-          <Input name="userId" value={userId} onChange={(event) => setUserId(event.target.value)} />
+          <Input name="userId" value={userId.value} onChange={userId.onChange} />
         </FormField>
         <Button type="submit">View user</Button>
       </form>

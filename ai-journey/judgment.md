@@ -193,3 +193,62 @@ single-consumer deps (like `@tanstack/react-router`) deliberately did not.
 This is the same shape as the peer-dependency bug above: a real correctness
 gap in the dependency graph, caught by re-reading `package.json` files rather
 than by running anything.
+
+## Bug found later: assignee field went stale against its own Jotai default
+
+`CreateTodoForm` (`packages/todos`) reads `selectedUserIdAtom` and was using
+it to seed the assignee field's default: `useState(selectedUserId ?? "")`.
+That reads correctly on a fresh mount (which is all the manual browser
+testing earlier in this session happened to exercise — create user →
+navigate to a *new* `/todos/new` mount each time), but it's a real Jotai
+anti-pattern: a `useState` initializer only runs once, at mount, so if the
+atom's value changed *while this form stayed mounted* (e.g. the user was
+selected from another part of the UI without a full remount of this
+component), the field would silently keep showing the old default. The task
+explicitly asks for Jotai to be used "deliberately, not as a dumping
+ground" — reading it once and then ignoring further updates is the
+under-using-it failure mode of that same requirement, just less obvious than
+overusing it.
+
+**The fix**: added a `useEffect` that re-syncs `assigneeId` to
+`selectedUserId` whenever the atom changes, guarded by an `assigneeTouched`
+ref so it only overwrites the field while the user hasn't typed their own
+assignee — otherwise selecting a different user elsewhere would yank away
+whatever the user was mid-typing here. The touched flag resets after a
+successful submit, so the *next* todo again defaults from the atom rather
+than staying pinned to whatever was just typed.
+
+**Test added**: `CreateTodoForm.test.tsx` (previously this component had no
+test at all — the plan's "one representative unit test per package" for
+`packages/todos` had gone to `ToDoList` instead). Three cases, using a real
+Jotai `createStore` so the atom can be mutated mid-test the way the bug
+actually manifests: defaults from the atom at mount, stays in sync when the
+atom changes *after* mount (the exact case the old code got wrong — this
+test would have failed against the pre-fix code), and stops following the
+atom once the user has typed their own value. Verified: full workspace
+`typecheck`/`test`/`lint` all green (8 tests in `packages/todos`, up from 5).
+
+## Follow-up: extending the same atom-default behavior to HomePage's lookup field
+
+Asked to add the same "default from `selectedUserIdAtom`" behavior to the
+`apps/web` home page's "Look up a user by ID" field. At that point the
+mount-once-then-resync-via-effect-with-a-touched-ref logic existed in exactly
+one place (`CreateTodoForm`); copying it verbatim into `HomePage` would have
+made it exist in two places with no shared source of truth — the second
+occurrence of a pattern is the actual trigger point the `atomic-design-structure`
+skill and this project's own convention use for promoting something into
+`packages/shared` (see "Atomic Design, pragmatically" in the README), so I
+extracted it as `useDefaultedFromAtom` in `packages/shared/src/hooks` instead
+of copy-pasting. `CreateTodoForm` was refactored to use the extracted hook
+too, so there's now exactly one implementation of this behavior, not two
+independently-maintained copies that could drift.
+
+Didn't add a dedicated test for the hook itself — `CreateTodoForm.test.tsx`'s
+three cases already exercise its full contract (default-at-mount, re-sync
+while untouched, stop-following once touched) through a real consumer, and
+duplicating that as an isolated hook test would just be the same three
+assertions with less context. Verified the `HomePage` integration manually in
+Chrome instead: created a user, clicked "Home" (client-side nav, no remount
+reset), confirmed the lookup field was prefilled with that user's id — plus
+the full `typecheck`/`test`/`lint`/`build` pipeline stayed green after the
+refactor.
