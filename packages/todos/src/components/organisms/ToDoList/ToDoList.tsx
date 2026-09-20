@@ -1,6 +1,6 @@
-import type { EntityId } from "@jtl/shared";
+import type { EntityId } from "@jtl/modules-shared";
+import type { ToDoItem as ToDoItemModel } from "@jtl/modules-todos";
 import { ToDoItem } from "../ToDoItem/ToDoItem";
-import type { ToDoItem as ToDoItemModel } from "../../../types";
 
 export interface ToDoListProps {
   todos: ToDoItemModel[];

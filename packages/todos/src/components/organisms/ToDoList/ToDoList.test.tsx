@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ToDoList } from "./ToDoList";
-import type { ToDoItem } from "../../../types";
+import type { ToDoItem } from "@jtl/modules-todos";
 
 const todos: ToDoItem[] = [
   { id: "1", title: "Write README", assigneeId: "user-1", createdAt: new Date().toISOString() },

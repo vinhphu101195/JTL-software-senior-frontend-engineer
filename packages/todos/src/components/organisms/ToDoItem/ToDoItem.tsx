@@ -1,4 +1,4 @@
-import type { ToDoItem as ToDoItemModel } from "../../../types";
+import type { ToDoItem as ToDoItemModel } from "@jtl/modules-todos";
 
 export interface ToDoItemProps {
   todo: ToDoItemModel;

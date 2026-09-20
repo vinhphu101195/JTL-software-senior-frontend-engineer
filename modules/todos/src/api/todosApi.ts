@@ -1,4 +1,4 @@
-import type { EntityId } from "@jtl/shared";
+import type { EntityId } from "@jtl/modules-shared";
 import type { CreateTodoInput, ToDoItem } from "../types";
 
 /**

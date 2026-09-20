@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createStore, Provider as JotaiProvider } from "jotai";
-import { selectedUserIdAtom } from "@jtl/shared";
+import { selectedUserIdAtom } from "@jtl/modules-shared";
 import { describe, expect, it } from "vitest";
 import { CreateTodoForm } from "./CreateTodoForm";
 

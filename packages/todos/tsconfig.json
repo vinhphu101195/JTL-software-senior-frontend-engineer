@@ -3,7 +3,9 @@
   "compilerOptions": {
     "types": ["vitest/globals", "@testing-library/jest-dom"],
     "paths": {
-      "@jtl/shared": ["../shared/src/index.ts"]
+      "@jtl/shared": ["../shared/src/index.ts"],
+      "@jtl/modules-shared": ["../../modules/shared/src/index.ts"],
+      "@jtl/modules-todos": ["../../modules/todos/src/index.ts"]
     }
   },
   "include": ["src"]

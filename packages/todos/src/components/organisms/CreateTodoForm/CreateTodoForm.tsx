@@ -1,41 +1,27 @@
 import { useEffect, useState, type FormEvent } from "react";
-import {
-  Button,
-  FormField,
-  Input,
-  selectedUserIdAtom,
-  useDebounce,
-  useDefaultedFromAtom,
-} from "@jtl/shared";
-import { useCreateTodo } from "../../../hooks/useCreateTodo";
-import { createTodoSchema } from "./createTodoForm.schema";
+import { Button, FormField, Input, useDebounce, useDefaultedFromAtom } from "@jtl/shared";
+import { selectedUserIdAtom } from "@jtl/modules-shared";
+import { createTodoSchema, useCreateTodo } from "@jtl/modules-todos";
 
 export function CreateTodoForm() {
   const [title, setTitle] = useState("");
   const assignee = useDefaultedFromAtom(selectedUserIdAtom);
-  const [fieldErrors, setFieldErrors] = useState<
-    Record<string, string | undefined>
-  >({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
   const createTodo = useCreateTodo();
 
+  // Live validation feedback for the title is debounced so the error message
+  // doesn't flicker on every keystroke while typing; submit itself always
+  // validates the immediate (non-debounced) value below, so correctness
+  // never depends on the debounce having settled.
   const debouncedTitle = useDebounce(title, 300);
   useEffect(() => {
-    const result = debouncedTitle
-      ? createTodoSchema.shape.title.safeParse(debouncedTitle)
-      : undefined;
-    setFieldErrors((prev) => ({
-      ...prev,
-      title:
-        result && !result.success ? result.error.issues[0]?.message : undefined,
-    }));
+    const result = debouncedTitle ? createTodoSchema.shape.title.safeParse(debouncedTitle) : undefined;
+    setFieldErrors((prev) => ({ ...prev, title: result && !result.success ? result.error.issues[0]?.message : undefined }));
   }, [debouncedTitle]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const result = createTodoSchema.safeParse({
-      title,
-      assigneeId: assignee.value,
-    });
+    const result = createTodoSchema.safeParse({ title, assigneeId: assignee.value });
     if (!result.success) {
       const errors: Record<string, string | undefined> = {};
       for (const issue of result.error.issues) {
@@ -57,30 +43,12 @@ export function CreateTodoForm() {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      noValidate
-      className="flex max-w-sm flex-col gap-4"
-    >
+    <form onSubmit={handleSubmit} noValidate className="flex max-w-sm flex-col gap-4">
       <FormField label="Title" htmlFor="todo-title" error={fieldErrors.title}>
-        <Input
-          name="title"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          required
-        />
+        <Input name="title" value={title} onChange={(event) => setTitle(event.target.value)} required />
       </FormField>
-      <FormField
-        label="Assignee (user ID)"
-        htmlFor="todo-assignee"
-        error={fieldErrors.assigneeId}
-      >
-        <Input
-          name="assigneeId"
-          value={assignee.value}
-          onChange={assignee.onChange}
-          required
-        />
+      <FormField label="Assignee (user ID)" htmlFor="todo-assignee" error={fieldErrors.assigneeId}>
+        <Input name="assigneeId" value={assignee.value} onChange={assignee.onChange} required />
       </FormField>
       {createTodo.isError && (
         <p role="alert" className="text-sm text-red-600">
