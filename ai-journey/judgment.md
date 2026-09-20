@@ -389,7 +389,11 @@ error with `role="alert"`. The submit-time test had to query by text rather
 than `findByRole("alert")`, since submitting both fields empty raises the
 Assignee field's own (always-assertive) error too — two `role="alert"`
 elements exist at that point, and `findByRole` throws on multiple matches.
-Verified: `typecheck`/`test` (19/19, up from 17)/`lint`/`build` all green.
+Verified: `typecheck`/`test`/`lint`/`build` all green. **Correction (see the
+"Recurring mistake" note below the UserList entry): the "19/19, up from 17"
+figure originally written here was wrong on both sides — the real numbers
+were 16 total, up from 14. The two new tests this commit actually added are
+real and correctly described above; only the reported aggregate was off.**
 
 ## Self-initiated: a "recently created users" list on the Home page
 
@@ -455,4 +459,62 @@ Docs: no architecture/README change (no new package boundary crossed, as
 anticipated). Tests added: `UserList.test.tsx` (loading/error/empty/render/
 navigate-callback/copy, 5 cases) and `useCreateUser.integration.test.tsx`
 (2 cases: cache append, and that it doesn't overwrite an existing list).
-Verified: `typecheck`/`test` (25/25, up from 19)/`lint`/`build` all green.
+Verified: `typecheck`/`test`/`lint`/`build` all green — see the correction
+immediately below for the actual test count; the number originally written
+here ("25/25, up from 19") was wrong.
+
+## Recurring mistake: a second unverified aggregate test count, despite saying it wouldn't happen again
+
+The user recounted the commit above independently and found the real total
+is **23**, not the 25 this file claimed. This is the same class of error as
+the earlier "10→13" mistake (a `prompts.md`/`judgment.md` entry above this
+one) — an aggregate number asserted without deriving it from an itemized
+count first — happening again, in the very next feature after I'd
+explicitly recorded that lesson. Not softening this: I said an aggregate
+should be itemized before being asserted, and then didn't do it here.
+
+**Full recount, itemized, across all four most recent commits** (`git show
+<commit>:<file> | grep -c '^\s*it('` per file, not eyeballed):
+
+| File | `c13e3d4` | `74749ed` | `0ee88e6` | `7969f8c` |
+|---|---|---|---|---|
+| `packages/shared/.../useDebounce.test.ts` | 2 | 2 | 2 | 2 |
+| `packages/todos/.../CreateTodoForm.test.tsx` | 3 | 3 | 5 | 5 |
+| `packages/todos/.../ToDoList.test.tsx` | 3 | 3 | 3 | 3 |
+| `packages/todos/.../useCreateTodo.integration.test.tsx` | 2 | 2 | 2 | 2 |
+| `packages/users/.../CreateUserForm.test.tsx` | 3 | 4 | 4 | 4 |
+| `packages/users/.../UserList.test.tsx` | — | — | — | 5 |
+| `packages/users/hooks/useCreateUser.integration.test.tsx` | — | — | — | 2 |
+| **Total** | **13** | **14** | **16** | **23** |
+
+**Which specific number was wrong, and where:** no test was planned and
+never written — every test named in every commit message above is real,
+present, and passing; `23 − 16 = 7` matches "5 `UserList` cases + 2
+`useCreateUser.integration` cases" exactly, with no gap to explain there.
+The error was entirely in the *reported baselines*, and it compounds across
+three commits, not just the last one:
+- `74749ed`'s commit message claimed "17/17". The real count at that commit
+  was **14** — already wrong by +3, and this one isn't even in this file
+  (`judgment.md`'s own text for that commit, above, correctly avoided
+  stating a number) — it was only in the git commit message, which is
+  immutable history I can annotate but not silently rewrite.
+- `0ee88e6`'s entry in this file claimed "19/19, up from 17" — both halves
+  wrong, both carrying forward the same +3 inflation from `74749ed`'s wrong
+  17 (real baseline was 14, real total was 16).
+- `7969f8c`'s entry (immediately above this note) claimed "25/25, up from
+  19" — carrying the same wrong 19 forward again, but *also* a fresh
+  arithmetic slip on top of it: `25 − 19 = 6`, which doesn't match either
+  the real 7 new tests or the flawed narrative — so this last number wasn't
+  just inherited error, it was independently miscalculated too.
+
+**Why itemizing after the fact caught this and a mental tally didn't:** in
+each case I was tracking "add N tests" correctly in the moment (the
+per-commit additions were always right) but the running *total* was never
+re-derived from the actual file contents before being written down — it was
+carried forward from the previous commit's own (unverified) claim and
+incremented from memory. Errors compound silently under that approach and
+nothing catches them until someone recounts from scratch, which is exactly
+what happened both times. The fix isn't "be more careful" — it's structural:
+before writing any aggregate test count into a commit message or this file,
+run the itemized per-file count (as the table above does) rather than
+carrying forward a remembered total and adding to it.
