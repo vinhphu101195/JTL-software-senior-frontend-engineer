@@ -1,4 +1,4 @@
-import type { User } from "../../../types";
+import type { User } from "@jtl/modules-users";
 
 export interface UserDetailCardProps {
   user: User;

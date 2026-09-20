@@ -1,5 +1,5 @@
 {
-  "name": "@jtl/users",
+  "name": "@jtl/modules-users",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,28 +8,21 @@
   "scripts": {
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@jtl/modules-shared": "workspace:*",
-    "@jtl/modules-users": "workspace:*",
-    "@jtl/shared": "workspace:*"
+    "zod": "catalog:"
   },
   "peerDependencies": {
     "@tanstack/react-query": "catalog:",
-    "jotai": "catalog:",
     "react": "catalog:"
   },
   "devDependencies": {
+    "@jtl/shared": "workspace:*",
     "@tanstack/react-query": "catalog:",
-    "@testing-library/jest-dom": "catalog:",
-    "@testing-library/react": "catalog:",
-    "@testing-library/user-event": "catalog:",
     "@types/react": "catalog:",
-    "jotai": "catalog:",
-    "jsdom": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

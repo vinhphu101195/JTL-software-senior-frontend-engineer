@@ -1,15 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useSetAtom } from "jotai";
-import {
-  Button,
-  FormField,
-  Input,
-  selectedUserIdAtom,
-  useDebounce,
-} from "@jtl/shared";
-import { useCreateUser } from "../../../hooks/useCreateUser";
-import { createUserSchema } from "./createUserForm.schema";
-import type { User } from "../../../types";
+import { Button, FormField, Input, useDebounce } from "@jtl/shared";
+import { selectedUserIdAtom } from "@jtl/modules-shared";
+import { createUserSchema, useCreateUser, type User } from "@jtl/modules-users";
 
 export interface CreateUserFormProps {
   onCreated?: (user: User) => void;
@@ -28,9 +21,7 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
       return;
     }
     const result = createUserSchema.safeParse({ username: debouncedUsername });
-    setValidationError(
-      result.success ? undefined : result.error.issues[0]?.message,
-    );
+    setValidationError(result.success ? undefined : result.error.issues[0]?.message);
   }, [debouncedUsername]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -50,22 +41,11 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
     });
   }
 
-  const errorMessage =
-    validationError ??
-    (createUser.isError ? createUser.error.message : undefined);
+  const errorMessage = validationError ?? (createUser.isError ? createUser.error.message : undefined);
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      noValidate
-      className="flex max-w-sm flex-col gap-4"
-    >
-      <FormField
-        label="Username"
-        htmlFor="username"
-        error={errorMessage}
-        hint="3-24 characters, letters/numbers/-/_ only."
-      >
+    <form onSubmit={handleSubmit} noValidate className="flex max-w-sm flex-col gap-4">
+      <FormField label="Username" htmlFor="username" error={errorMessage} hint="3-24 characters, letters/numbers/-/_ only.">
         <Input
           name="username"
           value={username}

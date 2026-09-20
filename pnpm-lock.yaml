@@ -145,6 +145,34 @@ importers:
         specifier: 'catalog:'
         version: 2.1.9(jsdom@25.0.1)
 
+  modules/users:
+    dependencies:
+      '@jtl/modules-shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
+    devDependencies:
+      '@jtl/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@tanstack/react-query':
+        specifier: 'catalog:'
+        version: 5.103.1(react@18.3.1)
+      '@types/react':
+        specifier: 'catalog:'
+        version: 18.3.31
+      react:
+        specifier: 'catalog:'
+        version: 18.3.1
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 2.1.9(jsdom@25.0.1)
+
   packages/shared:
     devDependencies:
       '@testing-library/jest-dom':
@@ -226,12 +254,15 @@ importers:
 
   packages/users:
     dependencies:
+      '@jtl/modules-shared':
+        specifier: workspace:*
+        version: link:../../modules/shared
+      '@jtl/modules-users':
+        specifier: workspace:*
+        version: link:../../modules/users
       '@jtl/shared':
         specifier: workspace:*
         version: link:../shared
-      zod:
-        specifier: 'catalog:'
-        version: 3.25.76
     devDependencies:
       '@tanstack/react-query':
         specifier: 'catalog:'

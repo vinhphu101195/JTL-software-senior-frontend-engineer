@@ -1,0 +1,10 @@
+{
+  "extends": "@jtl/shared/tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["vitest/globals"],
+    "paths": {
+      "@jtl/modules-shared": ["../shared/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}
