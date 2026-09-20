@@ -322,3 +322,51 @@ and still pass, since submit-time validation was never debounced. Full
 `typecheck`/`test`/`lint`/`build` green. Could not verify in an actual
 browser this round (the Chrome automation tool had disconnected from this
 session) — noted here rather than implied.
+
+## Accessibility bug in the debounce-validation commit, found by the user
+
+The debounce-validation commit above (`c13e3d4`) introduced a real
+accessibility regression I didn't catch at the time: `FormField`'s error
+`<p role="alert">` is an ARIA *assertive* live region — it's meant to
+interrupt a screen reader user immediately, appropriate for a deliberate
+event like a failed submit. But that same `role="alert"` was firing for the
+new debounced *live-typing* validation too, meaning a screen reader user
+would get interrupted mid-keystroke by an assertive announcement — exactly
+the kind of jarring, unrequested interruption that "debounce the error so it
+doesn't flicker" was supposed to *avoid*, just in a different modality
+(auditory instead of visual). I only tested/considered the sighted
+experience (does the message flicker on screen) when adding the debounce;
+I didn't check what it did to the accessibility tree.
+
+**The fix**: `FormField` gained an `errorPriority?: "assertive" | "polite"`
+prop (default `"assertive"`, preserving today's behavior everywhere it
+wasn't touched). `"assertive"` renders `role="alert"` as before;
+`"polite"` renders `aria-live="polite"` *without* `role="alert"` —
+`role="alert"` always forces assertive semantics per the ARIA spec
+regardless of any `aria-live` attribute alongside it, so the two can't be
+combined; omitting the role is the only way to get genuinely polite
+announcement. `CreateUserForm` tracks which of its two write-paths
+(debounced live check vs. submit) last set `validationError` via a sibling
+`errorPriority` state, since both paths share one `error` slot in the same
+`FormField` — a mutation failure (`createUser.isError`) is always treated
+as assertive regardless of that state, since a failed API call is as
+deliberate an event as a failed submit.
+
+**Test added**: `CreateUserForm.test.tsx` gained a case asserting the
+live-typing error has `aria-live="polite"` and explicitly does *not* have
+`role="alert"` (plus `screen.queryByRole("alert")` returns nothing) — and
+the existing submit-time test now also asserts the inverse
+(`role="alert"` present, no `aria-live="polite"`). The pre-existing
+debounce test had to be corrected too: it was asserting
+`screen.getByRole("alert")` for the live-typing case, which was itself
+proof the bug went unnoticed — that assertion was *validating the bug*, not
+catching it, because it never checked *which* ARIA role/live-region
+semantics were actually appropriate, only that some error text appeared.
+
+**What's still open**: `CreateTodoForm`'s debounced title-validation has the
+identical issue (same `FormField`, same `role="alert"` default) and was not
+in scope for this fix — the instruction named `CreateUserForm` specifically.
+`packages/todos`'s `CreateTodoForm.tsx` still passes no `errorPriority`, so
+it keeps today's (buggy) assertive-on-every-keystroke behavior. Flagging
+this explicitly rather than silently also fixing it (scope creep) or
+silently leaving the asymmetry undocumented.

@@ -5,6 +5,16 @@ export interface FormFieldProps {
   htmlFor: string;
   error?: string;
   hint?: string;
+  /**
+   * `"assertive"` (default) interrupts the screen reader immediately via
+   * `role="alert"` — reserve it for deliberate, user-initiated events like a
+   * submit-time validation failure. `"polite"` announces only once the
+   * screen reader is idle, via `aria-live="polite"` (role="alert" always
+   * forces assertive semantics per the ARIA spec, so it's omitted here) —
+   * use it for feedback that appears on its own while the user is still
+   * typing, so every keystroke's error doesn't interrupt them mid-type.
+   */
+  errorPriority?: "assertive" | "polite";
   children: ReactElement<{ id?: string; "aria-invalid"?: boolean; "aria-describedby"?: string }>;
 }
 
@@ -13,7 +23,7 @@ export interface FormFieldProps {
  * same accessibility wiring (aria-invalid / aria-describedby) without each
  * feature package re-deriving it by hand.
  */
-export function FormField({ label, htmlFor, error, hint, children }: FormFieldProps) {
+export function FormField({ label, htmlFor, error, hint, errorPriority = "assertive", children }: FormFieldProps) {
   const errorId = `${htmlFor}-error`;
   const hintId = `${htmlFor}-hint`;
   const describedBy = [error ? errorId : null, hint ? hintId : null].filter(Boolean).join(" ") || undefined;
@@ -38,7 +48,12 @@ export function FormField({ label, htmlFor, error, hint, children }: FormFieldPr
         </p>
       )}
       {error && (
-        <p id={errorId} role="alert" className="text-xs text-red-600">
+        <p
+          id={errorId}
+          role={errorPriority === "assertive" ? "alert" : undefined}
+          aria-live={errorPriority === "polite" ? "polite" : undefined}
+          className="text-xs text-red-600"
+        >
           {error}
         </p>
       )}

@@ -18,6 +18,12 @@ export interface CreateUserFormProps {
 export function CreateUserForm({ onCreated }: CreateUserFormProps) {
   const [username, setUsername] = useState("");
   const [validationError, setValidationError] = useState<string | undefined>();
+  // Tracks whether validationError came from the debounced live-typing check
+  // (should announce politely, without interrupting) or a submit attempt
+  // (should announce immediately, via role="alert") — both paths write to
+  // the same validationError state, so the priority has to be tracked
+  // alongside it rather than inferred from anything else.
+  const [errorPriority, setErrorPriority] = useState<"assertive" | "polite">("polite");
   const createUser = useCreateUser();
   const setSelectedUserId = useSetAtom(selectedUserIdAtom);
 
@@ -28,9 +34,8 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
       return;
     }
     const result = createUserSchema.safeParse({ username: debouncedUsername });
-    setValidationError(
-      result.success ? undefined : result.error.issues[0]?.message,
-    );
+    setValidationError(result.success ? undefined : result.error.issues[0]?.message);
+    setErrorPriority("polite");
   }, [debouncedUsername]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -38,6 +43,7 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
     const result = createUserSchema.safeParse({ username });
     if (!result.success) {
       setValidationError(result.error.issues[0]?.message);
+      setErrorPriority("assertive");
       return;
     }
     setValidationError(undefined);
@@ -50,20 +56,18 @@ export function CreateUserForm({ onCreated }: CreateUserFormProps) {
     });
   }
 
-  const errorMessage =
-    validationError ??
-    (createUser.isError ? createUser.error.message : undefined);
+  const errorMessage = validationError ?? (createUser.isError ? createUser.error.message : undefined);
+  // A mutation failure is always a deliberate, submit-time event, regardless
+  // of what errorPriority was last set to by the live-typing check.
+  const displayedErrorPriority = validationError ? errorPriority : "assertive";
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      noValidate
-      className="flex max-w-sm flex-col gap-4"
-    >
+    <form onSubmit={handleSubmit} noValidate className="flex max-w-sm flex-col gap-4">
       <FormField
         label="Username"
         htmlFor="username"
         error={errorMessage}
+        errorPriority={displayedErrorPriority}
         hint="3-24 characters, letters/numbers/-/_ only."
       >
         <Input
