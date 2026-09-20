@@ -22,6 +22,11 @@ export async function apiCreateUser(username: string): Promise<User> {
   return user;
 }
 
+export async function apiListUsers(): Promise<User[]> {
+  await delay(300);
+  return Array.from(store.values());
+}
+
 export async function apiGetUser(id: string): Promise<User> {
   await delay(300);
   const user = store.get(id);

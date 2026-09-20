@@ -390,3 +390,69 @@ than `findByRole("alert")`, since submitting both fields empty raises the
 Assignee field's own (always-assertive) error too — two `role="alert"`
 elements exist at that point, and `findByRole` throws on multiple matches.
 Verified: `typecheck`/`test` (19/19, up from 17)/`lint`/`build` all green.
+
+## Self-initiated: a "recently created users" list on the Home page
+
+Not asked for by the original spec — I raised this myself. `assigneeId` is
+an opaque foreign key by design (the `packages/todos`↔`packages/users`
+boundary decision), which is correct architecturally, but it creates a real
+UX gap the spec didn't anticipate: once you've created a second or third
+user, there's no way to find a user's id again except remembering it
+verbatim or re-reading it off a previous screen — the "look up a user by
+ID" field on the Home page assumes you already have the id, which nothing
+in the app actually helps you get once it's scrolled off screen. This only
+becomes obvious with 2+ users, which is easy to miss when building and
+testing one user at a time.
+
+Added `apiListUsers`/`useUsers` (query key `["users"]`, distinct from
+`useUser`'s `["users","detail",id]`) and a `UserList` organism rendered on
+`HomePage` below the lookup form: username, a shortened id, and a
+copy-to-clipboard button. `useCreateUser`'s `onSuccess` now also appends
+directly to the `["users"]` cache (`setQueryData` with an updater, not
+`invalidateQueries`) — consistent with how this app already avoids
+unnecessary refetches (see the optimistic-update work), and verified with a
+dedicated integration test asserting `apiListUsers` is never called after a
+create.
+
+**Boundary/dependency call worth flagging**: `ToDoList` is presentational
+(receives `todos` as a prop) specifically because of the users↔todos
+boundary rule — `packages/todos` can't fetch user data itself. `UserList`
+has no such constraint (it's inside `packages/users`, about users), so I
+made it self-contained instead, calling `useUsers()` itself and owning its
+own loading/error/empty states — matching how `CreateUserForm`/
+`CreateTodoForm` are self-contained organisms, not copying `ToDoList`'s
+presentational shape for a reason that doesn't apply here.
+
+**Navigation without a new dependency**: clicking a username needed to
+navigate to `/users/:id`, but `packages/users` has no dependency on
+`@tanstack/react-router` (only `apps/web` does) and adding one just for a
+single `Link` felt like the wrong direction — a UI-primitives-adjacent
+package picking up a router dependency because one call site needs it.
+Instead, the username renders as a real `<a href="/users/{id}">` (correct
+link semantics — keyboard-operable, right-click/open-in-new-tab work even
+without JS) whose `onClick` calls `preventDefault()` and an optional
+`onSelectUser` callback, which `HomePage` wires to the existing
+`navigate()` call — the same callback-prop shape `CreateUserForm`'s
+`onCreated` already uses for the identical problem (a `packages/*`
+component triggering app-level navigation without importing the router).
+
+**A real debugging detour, worth recording**: mocking `navigator.clipboard`
+in this jsdom setup was much less straightforward than expected. Both
+`Object.assign(navigator, {clipboard: ...})` (fails — jsdom's `clipboard` is
+getter-only) and `vi.stubGlobal("navigator", {...navigator, clipboard: ...})`
+(no error, but silently didn't work) failed; the running component kept
+reading jsdom's own real `Clipboard` instance regardless, confirmed only by
+temporarily adding `console.error` debug lines inside the component to see
+what `navigator.clipboard` actually resolved to at call time — the test
+failures alone ("0 calls") didn't distinguish "our mock was never reached"
+from "the component has a bug," and guessing at fixes without that
+visibility would have been trial and error. `vi.spyOn(navigator.clipboard,
+"writeText")` — patching the method on the real, already-existing object
+rather than trying to replace the object or the global — is what actually
+worked. Debug lines were removed before committing.
+
+Docs: no architecture/README change (no new package boundary crossed, as
+anticipated). Tests added: `UserList.test.tsx` (loading/error/empty/render/
+navigate-callback/copy, 5 cases) and `useCreateUser.integration.test.tsx`
+(2 cases: cache append, and that it doesn't overwrite an existing list).
+Verified: `typecheck`/`test` (25/25, up from 19)/`lint`/`build` all green.
