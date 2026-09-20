@@ -68,6 +68,18 @@ composition belongs: the app shell, not either feature package.
   Extracted into `packages/shared` once it was needed in a second place (both a
   todos-package component and an apps/web page), per the same "promote after actual
   reuse" rule the component layers follow — not written speculatively upfront.
+- **`useDebounce` (`packages/shared/src/hooks`) debounces validation feedback, not
+  typing**: `username` and to-do `title` stay ordinary controlled inputs — a
+  `useEffect` derives a debounced copy of each value and uses it to decide when to
+  show a live validation error, so the message doesn't flicker on every keystroke
+  while typing. Submit always validates the immediate (non-debounced) value, so
+  correctness never depends on debounce timing. I initially built a `DebouncedInput`
+  molecule that moved the raw keystroke state into a child component (to actually
+  stop the parent from re-rendering per character), but reverted it: these forms are
+  small enough that the prevented re-render is inconsequential, while the
+  `forwardRef`/`flush()`/`setValue()` machinery it required was real, ongoing
+  complexity for a problem this codebase doesn't have at this scale. See
+  `ai-journey/judgment.md` for the full back-and-forth.
 - **Optimistic create + rollback** (`packages/todos/src/hooks/useCreateTodo.ts`):
   `onMutate` snapshots the affected user's cached to-do list and inserts an optimistic
   item (id prefixed `optimistic-` so the UI can show a "Saving…" affordance);
@@ -109,16 +121,22 @@ composition belongs: the app shell, not either feature package.
 **Performance considerations**: Query results are cached per-key (`users/detail/:id`,
 `todos/byUser/:id`) with a 30s `staleTime`, so re-visiting a user/to-do list doesn't
 re-fetch immediately. The optimistic update avoids a loading spinner on the common
-path (successful create). Components are largely presentational and re-render only on
-their own prop/query changes — nothing sits in a global re-render-everything store. At
-larger scale I'd add route-level code-splitting (`apps/web` currently loads all four
-pages eagerly, which was left simple over `React.lazy` given the app's tiny page count)
-and consider `select` on the query hooks if list payloads grew large.
+path (successful create). Form fields re-render their owning form on every keystroke
+(inherent to controlled inputs) — at this app's scale that's inconsequential, so
+`useDebounce` is spent on the part that's actually worth smoothing: live validation
+error display, not typing itself (see "Other notable decisions" above, including a
+more invasive design I tried and reverted). Components are otherwise largely
+presentational and re-render only on their own prop/query changes — nothing sits in a
+global re-render-everything store. At larger scale I'd add route-level code-splitting
+(`apps/web` currently loads all four pages eagerly, which was left simple over
+`React.lazy` given the app's tiny page count) and consider `select` on the query hooks
+if list payloads grew large.
 
 **Testing strategy** (only a representative slice is implemented — see
 `packages/users/src/components/organisms/CreateUserForm/CreateUserForm.test.tsx`,
-`packages/todos/src/components/organisms/ToDoList/ToDoList.test.tsx`, and
-`packages/todos/src/hooks/useCreateTodo.integration.test.tsx`):
+`packages/todos/src/components/organisms/{ToDoList,CreateTodoForm}` tests,
+`packages/todos/src/hooks/useCreateTodo.integration.test.tsx`, and
+`packages/shared/src/hooks/useDebounce.test.ts`):
 - **Unit**: form components against their Zod schemas (empty/invalid/valid input →
   correct error text and `aria-invalid`); presentational components (`ToDoList`,
   `UserDetailCard`) against props, independent of any network.

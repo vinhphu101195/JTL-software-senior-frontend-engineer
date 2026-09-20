@@ -252,3 +252,73 @@ Chrome instead: created a user, clicked "Home" (client-side nav, no remount
 reset), confirmed the lookup field was prefilled with that user's id — plus
 the full `typecheck`/`test`/`lint`/`build` pipeline stayed green after the
 refactor.
+
+## User-raised performance issue: debounce the text inputs — and a design I proposed that the user correctly rejected
+
+The user pointed out that every keystroke in a form field calls `setState` in
+the *parent* form component (`setUsername`, `setTitle`), so that component
+re-renders on every character — asked for a `useDebounce` in
+`packages/shared`, combined with form handling, with the input owning its
+own state and only pushing up to the parent "after the user stops typing,"
+comparing it to antd's `setFieldValue`.
+
+**My first design (built, then reverted before committing):** a
+`DebouncedInput` molecule wrapping `Input` with its own internal `useState`,
+pushing to the parent via `onDebouncedChange` only after the debounce
+settled, plus a `forwardRef`/`useImperativeHandle` exposing `flush()` (read
+the current value synchronously, for correct submit-time validation) and
+`setValue()` (so `CreateTodoForm` could still clear `title` after a
+successful add, since the parent's own `setState("")` could no longer reach
+state that had moved into the child). Applied only to `username`/`title` —
+not the `assigneeId`/`userId` fields, which use `useDefaultedFromAtom` and
+must stay controlled so the Jotai atom can push values in from outside, a
+capability an uncontrolled field can't have.
+
+**The user's pushback, and why it was right:** *"nếu cuối cùng vẫn là
+setState, thì đâu cần phải tạo ra DebouncedInput để làm gì? sao ko sử dụng
+input bình thường kết hợp hook useDebounce rồi sau đó setState?"* — if a
+`setState` call happens either way, why build `DebouncedInput` instead of a
+plain `Input` + `useDebounce` in the parent? I explained the actual
+distinction (moving the *raw per-keystroke* state into a child is what stops
+the parent from re-rendering per character; debouncing a value *derived*
+from parent state that still updates every keystroke doesn't help, because
+the parent still re-renders on every keystroke regardless), but then had to
+weigh that correctly-explained distinction against what it was actually
+buying here: these forms are tiny (one or two cheap fields), so the
+re-render `DebouncedInput` prevents is inconsequential, while the
+`flush()`/`setValue()` imperative escape hatches it requires are real,
+ongoing complexity and two correctness gaps that don't exist in the simpler
+version. I recommended reverting to the simpler design myself once I traced
+through that trade-off — the user then confirmed. This is the flip side of
+"where I overrode AI": here the user's challenge was the correct call, and I
+own that my first design solved a problem this codebase doesn't actually
+have, at a real complexity cost.
+
+**What actually shipped**: `useDebounce<T>(value, delayMs)`
+(`packages/shared/src/hooks/useDebounce.ts`) stays a plain, generic hook —
+no new component. `username`/`title` remain ordinary controlled `Input`s in
+the parent (state unchanged from before this whole detour). `useDebounce` is
+used to derive a *debounced* copy of each value, which drives a `useEffect`
+that recomputes *live validation-error display only* — so an error message
+doesn't flicker on every keystroke while the user is still typing. Submit
+itself always validates the immediate, non-debounced value, so correctness
+never depends on debounce timing, and there's no `flush()`/`setValue()`
+machinery to maintain because nothing needed an imperative escape hatch.
+This does **not** reduce how often the parent re-renders per keystroke
+(explained above — it can't, given controlled inputs) but that was never the
+part worth optimizing here; the flicker-free error display is the real,
+proportionate win.
+
+**Testing:** kept `useDebounce.test.ts` (`packages/shared`'s first test,
+using `vi.useFakeTimers()` — this also surfaced that `packages/shared` had
+no `vitest.config.ts` of its own until this session, since no earlier test
+in that package had touched the DOM). Added one test to
+`CreateUserForm.test.tsx` proving the new debounced-error behavior
+specifically: typing an invalid value shows no error immediately, only after
+`vi.advanceTimersByTime(300)`. Used `fireEvent.change` rather than
+`userEvent.type` for that one test — `userEvent`'s internal delays hung
+indefinitely under fake timers. The two pre-existing tests needed no changes
+and still pass, since submit-time validation was never debounced. Full
+`typecheck`/`test`/`lint`/`build` green. Could not verify in an actual
+browser this round (the Chrome automation tool had disconnected from this
+session) — noted here rather than implied.

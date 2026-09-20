@@ -1,8 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createStore, Provider as JotaiProvider } from "jotai";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CreateUserForm } from "./CreateUserForm";
 
 function renderForm() {
@@ -18,6 +18,26 @@ function renderForm() {
 }
 
 describe("CreateUserForm", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("does not show the live validation error until the user pauses (debounced), not on every keystroke", () => {
+    vi.useFakeTimers();
+    renderForm();
+
+    // fireEvent (not userEvent) — userEvent's internal delays don't play well
+    // with fake timers, and this test only needs a single synchronous change.
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "ab" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("at least 3 characters");
+  });
+
   it("shows a validation error and does not submit when the username is too short", async () => {
     const user = userEvent.setup();
     renderForm();
