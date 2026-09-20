@@ -1,6 +1,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "modules/*"
 
 # Single source of truth for versions shared across multiple package.json
 # files, so bumping one doesn't risk drifting from the others. Only libraries
