@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { Provider as JotaiProvider } from "jotai";
-import { createQueryClient } from "@jtl/shared";
+import { createQueryClient } from "@jtl/modules-shared";
 import { router } from "./router";
 import "./styles.css";
 

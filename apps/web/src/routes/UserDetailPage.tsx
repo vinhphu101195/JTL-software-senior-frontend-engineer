@@ -1,8 +1,10 @@
 import { useEffect } from "react";
 import { useSetAtom } from "jotai";
-import { selectedUserIdAtom, type EntityId } from "@jtl/shared";
-import { useUser, UserDetailCard } from "@jtl/users";
-import { useTodosByUser, ToDoList } from "@jtl/todos";
+import { selectedUserIdAtom, type EntityId } from "@jtl/modules-shared";
+import { useUser } from "@jtl/modules-users";
+import { UserDetailCard } from "@jtl/users";
+import { useTodosByUser } from "@jtl/modules-todos";
+import { ToDoList } from "@jtl/todos";
 
 export interface UserDetailPageProps {
   userId: EntityId;

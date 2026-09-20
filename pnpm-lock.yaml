@@ -74,6 +74,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@jtl/modules-shared':
+        specifier: workspace:*
+        version: link:../../modules/shared
+      '@jtl/modules-todos':
+        specifier: workspace:*
+        version: link:../../modules/todos
+      '@jtl/modules-users':
+        specifier: workspace:*
+        version: link:../../modules/users
       '@jtl/shared':
         specifier: workspace:*
         version: link:../../packages/shared

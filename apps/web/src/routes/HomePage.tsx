@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Button, FormField, Input, selectedUserIdAtom, useDefaultedFromAtom } from "@jtl/shared";
+import { Button, FormField, Input, useDefaultedFromAtom } from "@jtl/shared";
+import { selectedUserIdAtom } from "@jtl/modules-shared";
 
 export function HomePage() {
   const userId = useDefaultedFromAtom(selectedUserIdAtom);

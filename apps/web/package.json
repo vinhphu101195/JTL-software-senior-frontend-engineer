@@ -12,6 +12,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@jtl/modules-shared": "workspace:*",
+    "@jtl/modules-todos": "workspace:*",
+    "@jtl/modules-users": "workspace:*",
     "@jtl/shared": "workspace:*",
     "@jtl/todos": "workspace:*",
     "@jtl/users": "workspace:*",
