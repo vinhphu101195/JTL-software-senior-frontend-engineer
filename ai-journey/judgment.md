@@ -322,3 +322,58 @@ and still pass, since submit-time validation was never debounced. Full
 `typecheck`/`test`/`lint`/`build` green. Could not verify in an actual
 browser this round (the Chrome automation tool had disconnected from this
 session) — noted here rather than implied.
+
+## Exploration branch (`explore/multi-platform-dynamic-modules`): two mistakes, both caught before pushing
+
+This branch splits business logic (`modules/todos`, `modules/users`,
+`modules/shared`) from Web UI (`packages/todos`, `packages/users`,
+`packages/shared`) as an architectural demo — see the root README's
+"Exploration branch" section. It does not touch `main`. Two mistakes
+happened while doing this, and per an explicit instruction not to scrub the
+first one once caught, both are recorded here rather than quietly fixed and
+forgotten.
+
+**Mistake 1 — a wrong aggregate number, stated with false confidence.**
+After finishing the restructure, I reported the test count as "10→13" when
+asked to confirm it hadn't grown (the refactor was scoped as move-only). The
+real answer was **13→13** — I'd compared against a stale mid-session count
+from before an earlier commit (`c13e3d4`, "add debounce for validation") had
+already landed on `main`, not against `main`'s actual state right before
+this branch was cut. Caught only because I was asked for an itemized
+per-file breakdown instead of being allowed to hand over a bare aggregate —
+the itemized table immediately made the arithmetic checkable and the error
+obvious. Table (all 5 test files, `main` vs. this branch):
+
+| File | main | branch |
+|---|---|---|
+| `packages/shared/src/hooks/useDebounce.test.ts` | 2 | 2 |
+| `packages/todos/.../CreateTodoForm.test.tsx` | 3 | 3 |
+| `packages/todos/.../ToDoList.test.tsx` | 3 | 3 |
+| `packages/todos/src/hooks/useCreateTodo.integration.test.tsx` → `modules/todos/...` | 2 | 2 (moved, not modified) |
+| `packages/users/.../CreateUserForm.test.tsx` | 3 | 3 |
+| **Total** | **13** | **13** |
+
+Lesson: an aggregate number is a claim I should be able to back with an
+itemized one on request, and I should produce the itemized version myself
+before asserting the aggregate, not only when challenged for it.
+
+**Mistake 2 — a commit whose message didn't match its actual diff.** While
+splitting the restructure into five ordered commits (`modules/shared` →
+`modules/users` → `modules/todos` → `apps/web` → docs, each with its own
+scoped pipeline run), the first commit's message described it as touching
+only `modules/shared`/`packages/shared`. `git show --stat` on it afterward
+showed it *also* included the raw file relocations (0-line-diff renames) for
+`modules/todos` and `modules/users` — because `git mv` stages a move
+immediately, and those files had been `git mv`'d earlier in the session,
+before the commit-splitting even began; my later `git add <bucket-1-paths>`
+only added to the index, it didn't clear what was already staged there. The
+commit still passed its own scoped typecheck (a pure rename with 0 content
+diff can't break anything), so this wasn't a functional bug — but the
+commit's contents didn't match what it claimed. Caught by running
+`git show --stat` on the commit right after making it, as a sanity check,
+rather than trusting that "I staged the right `git add` command" meant "the
+index only contains what I just added." Fixed by `git reset HEAD~1`
+(mixed, fully unstaging) and re-staging bucket 1 file-by-file with a
+`git diff --cached --stat` check before each commit from that point on —
+the same verify-before-trusting habit as mistake 1, applied to git state
+instead of a test count.

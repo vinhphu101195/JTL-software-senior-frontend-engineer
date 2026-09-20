@@ -3,6 +3,79 @@
 A small Turborepo monorepo: two connected features (users, to-dos) sharing routing, data
 fetching, and cross-cutting UI state through a shared package.
 
+> **If you're on `main`**: skip ahead to "Install and run" — everything below this box
+> describes the actual take-home submission. **If you're on
+> `explore/multi-platform-dynamic-modules`**: read the next section first: the package
+> layout it describes (`packages/todos`, `packages/users`, `packages/shared`) is no
+> longer complete on this branch, and the section right after this box explains what's
+> different and why.
+
+## Exploration branch: multi-platform modules
+
+This branch is a from-`main` architectural exploration, not part of the actual
+submission — it exists to demonstrate how this codebase could support a future React
+Native app without a rewrite, for discussion in an interview setting. **Nothing on
+`main` changed**; every file in this section only exists on
+`explore/multi-platform-dynamic-modules`.
+
+**The idea**: split "business logic that can run on any platform" from "Web-specific
+UI," without introducing full DDD (no domain/application/infrastructure layers, no
+entity classes) — just a reorganization of *where* the existing code lives, not a
+rewrite of *what* it does. Concretely:
+
+```
+modules/todos/     api/, hooks/ (useCreateTodo, useTodosByUser — the optimistic-update
+                   rollback logic, unchanged), validation/ (Zod rules), types.ts.
+                   Zero DOM dependency; the exact same file would run under React
+                   Native, since TanStack Query, Jotai, and Zod all work there too.
+modules/users/     same pattern.
+modules/shared/    selectedUserIdAtom, the TanStack Query client factory, EntityId —
+                   platform-agnostic shared state and config.
+
+packages/todos/    Web UI only now: components/ (CreateTodoForm, ToDoList, ToDoItem).
+                   Imports business logic from modules/todos exactly as components did
+                   before this split (useCreateTodo(), etc. — the call sites inside
+                   components didn't change, only where the import comes from).
+packages/users/    same treatment: components/ only.
+packages/shared/   Web-UI-only shared code: the Button/Input/FormField atoms+molecule,
+                   the Tailwind preset, base tsconfig — plus useDefaultedFromAtom. That
+                   hook is pure DOM/React input-state wiring (no validation rules, no
+                   API calls), so it isn't "business logic" by this split's own
+                   definition; it stays here rather than moving into packages/todos
+                   because HomePage uses it too, independent of the todos feature —
+                   packages/shared is the lowest common dependency point among all its
+                   consumers, not wherever it happened to be used first.
+
+apps/web/          Unchanged role: routing, composition, providers. Now imports
+                   business logic from @jtl/modules-* and UI from @jtl/{todos,users,
+                   shared}, composing both at the routes that need them (e.g.
+                   UserDetailPage still does the users↔todos boundary join described
+                   below, just sourcing its hooks from modules/ now).
+```
+
+The rule for what moves into `modules/`: anything with zero DOM or React-Native-specific
+dependency — API calls, TanStack Query hooks (the optimistic-update logic included),
+Jotai atoms, the query client config, Zod validation *rules*. Anything that assumes a
+specific rendering target — JSX markup, Tailwind classes, DOM event types, and the
+UI-facing *decision* of when/how to surface a validation error — stays in a
+`packages/*` UI package. Validation rules are shared deliberately, so Web and a future
+Mobile app can never define "valid" differently and silently drift; the UI's
+error-display behavior (debounced live feedback vs. submit-time, `role="alert"`,
+styling) is not, since that's inherently per-platform.
+
+`packages/todos` and `packages/users` keep their exact names from the original task
+spec on this branch — only their internal contents and role changed, not their
+identity as "the todos/users feature package." Each has a short `README.md` at its
+root flagging this for anyone who opens the folder expecting the original
+components+hooks+api+types shape.
+
+**Where a Mobile app would plug in**: a hypothetical `apps/mobile` (not scaffolded here)
+would depend directly on `modules/todos`, `modules/users`, and `modules/shared` for all
+business logic and state — reusing the optimistic-update rollback logic, the validation
+rules, and the cross-cutting Jotai atom completely unchanged — and would need its own
+new UI package (e.g. `packages/todos-native`) built with React Native components
+instead of DOM/Tailwind, mirroring the role `packages/todos` plays for Web today.
+
 ## Install and run
 
 ```bash
@@ -53,8 +126,10 @@ composition belongs: the app shell, not either feature package.
 
 ## Other notable decisions
 
-- **Jotai for one concern only**: `selectedUserIdAtom` lives in `packages/shared` (not
-  `packages/users`) because both `UserDetailPage` (sets it) and `CreateTodoForm`/
+- **Jotai for one concern only**: `selectedUserIdAtom` lives in `packages/shared` on
+  `main` (`modules/shared` on the `explore/multi-platform-dynamic-modules` branch — see
+  above) — not `packages/users` — because both `UserDetailPage` (sets it) and
+  `CreateTodoForm`/
   `HomePage` (read it to prefill the assignee/lookup fields) need it, and the two
   feature packages can't share state by importing each other. Everything else (form
   input state, mutation pending/error state) stays local `useState`/React Query —
@@ -80,7 +155,9 @@ composition belongs: the app shell, not either feature package.
   `forwardRef`/`flush()`/`setValue()` machinery it required was real, ongoing
   complexity for a problem this codebase doesn't have at this scale. See
   `ai-journey/judgment.md` for the full back-and-forth.
-- **Optimistic create + rollback** (`packages/todos/src/hooks/useCreateTodo.ts`):
+- **Optimistic create + rollback** (`packages/todos/src/hooks/useCreateTodo.ts` on
+  `main`; `modules/todos/src/hooks/useCreateTodo.ts` on the exploration branch, moved
+  unchanged):
   `onMutate` snapshots the affected user's cached to-do list and inserts an optimistic
   item (id prefixed `optimistic-` so the UI can show a "Saving…" affordance);
   `onError` restores the snapshot; `onSettled` invalidates to reconcile with the
