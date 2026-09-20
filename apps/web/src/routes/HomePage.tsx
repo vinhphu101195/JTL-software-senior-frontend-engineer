@@ -2,6 +2,7 @@ import type { FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Button, FormField, Input, useDefaultedFromAtom } from "@jtl/shared";
 import { selectedUserIdAtom } from "@jtl/modules-shared";
+import { UserList } from "@jtl/users";
 
 export function HomePage() {
   const userId = useDefaultedFromAtom(selectedUserIdAtom);
@@ -27,6 +28,12 @@ export function HomePage() {
         </FormField>
         <Button type="submit">View user</Button>
       </form>
+      <section aria-labelledby="recent-users-heading" className="flex flex-col gap-3">
+        <h2 id="recent-users-heading" className="text-lg font-semibold text-slate-900">
+          Recently created users
+        </h2>
+        <UserList onSelectUser={(user) => void navigate({ to: "/users/$userId", params: { userId: user.id } })} />
+      </section>
     </div>
   );
 }

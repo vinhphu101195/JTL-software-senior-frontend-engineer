@@ -377,3 +377,72 @@ index only contains what I just added." Fixed by `git reset HEAD~1`
 `git diff --cached --stat` check before each commit from that point on —
 the same verify-before-trusting habit as mistake 1, applied to git state
 instead of a test count.
+
+## Porting UserList from `main`: the modules/packages split surviving a real new feature
+
+Everything on this branch so far had been *restructuring existing code* —
+moving files that already worked into a new shape. `main` gained a whole new
+feature (`UserList` + `useUsers`/`usersQueryKey`, commit `7969f8c`) after
+this branch had already diverged, which made porting it a genuine test of
+whether the `modules/`↔`packages/` split holds up for something built
+*after* the restructure, not just for what existed at restructure time —
+easy to get right once, by construction, and easy to quietly let drift on
+the next real change. It held, but not without two real, non-cosmetic
+adjustments the port surfaced — both worth recording because they're the
+actual payoff of doing this port at all, not a smooth copy-paste.
+
+**1. The UI test couldn't mock the API the way `main` did, and that's
+correct, not a workaround.** `main`'s `UserList.test.tsx` mocks
+`apiListUsers` directly to drive `useUsers()`'s loading/error/data states.
+On this branch, `apiListUsers` lives in `modules/users` and is deliberately
+*not* exported from its public `index.ts` (same encapsulation
+`modules/todos` already established — only hooks/validation/types are
+public, the fake API is a private implementation detail). So
+`packages/users`'s test literally cannot reach it anymore. The fix — mock
+`useUsers` itself (`vi.mock("@jtl/modules-users", () => ({ useUsers: vi.fn() }))`)
+and drive it via `mockReturnValue` — is a better test boundary for this
+architecture, not a downgrade: it tests `UserList` against the *public hook
+contract* it actually depends on, rather than reaching through it into
+another package's private implementation. This is exactly the kind of thing
+that's easy to get wrong silently (either by exporting `apiListUsers`
+"just for testing," reopening the encapsulation, or by not noticing the old
+mock target no longer exists and getting a confusing test failure) —
+flagged and confirmed with the user before implementing rather than picked
+unilaterally.
+
+**2. The user caught a coverage gap the above fix created, before it shipped.**
+Once `packages/users`'s test mocks `useUsers` directly, nothing on this
+branch exercises `useUsers`'s *real* implementation (the actual `useQuery`
+wiring, the actual query key, the actual pending/success/error transitions)
+— on `main`, that coverage existed *indirectly*, via `UserList.test.tsx`
+mocking `apiListUsers` and letting the real hook run underneath. That
+indirect coverage doesn't survive the encapsulation boundary: once the UI
+test mocks the hook instead of the API, the hook's own real behavior is
+untested by anything. This is a sharper version of the same lesson as the
+users/todos boundary decision itself — a boundary can be architecturally
+correct and still have a side effect (here, on test coverage) that has to be
+*checked*, not assumed away because the boundary itself is sound. The fix:
+added `modules/users/src/hooks/useUsers.test.tsx` — mocks `apiListUsers`
+(reachable here, unlike from `packages/users`) and renders the real
+`useUsers()` via `renderHook`, asserting the pending→success data flow and
+the pending→error flow against the actual hook, not a stand-in for it. This
+is new coverage that doesn't exist on `main` at all — `main` never needed it
+because its `UserList.test.tsx` covered the hook indirectly; splitting the
+package forced the direct test into existence. (Named `.tsx`, not the
+literally-requested `.ts` — the `QueryClientProvider` wrapper needs JSX, and
+`.tsx` matches the sibling `useCreateUser.integration.test.tsx`/
+`useCreateTodo.integration.test.tsx`; noted here since it's a deviation from
+the literal instruction, not a silent one.)
+
+Everything else ported mechanically, matching main exactly: `apiListUsers`
+(`modules/users/src/api/usersApi.ts`), `useUsers`/`usersQueryKey`
+(`modules/users/src/hooks/useUsers.ts`), `useCreateUser`'s cache-append
+(`onSuccess` now also does `setQueryData(usersQueryKey, ...)`, not just the
+per-user key), `useCreateUser.integration.test.tsx` (moved verbatim, zero
+content changes needed — same as every other hook test moved in this
+branch's earlier commits), and `UserList.tsx` itself (identical except the
+two imports that now come from `@jtl/modules-users` instead of relative
+paths). Verified: `typecheck`/`test` (22/22 — 2 shared + 2 `modules-todos` +
+6 `todos` + 4 `modules-users` + 8 `users`, itemized directly from `pnpm
+test` output before writing this number down, per the lesson two entries
+above)/`lint`/`build` all green.
