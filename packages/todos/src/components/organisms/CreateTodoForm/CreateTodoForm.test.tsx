@@ -1,9 +1,9 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createStore, Provider as JotaiProvider } from "jotai";
 import { selectedUserIdAtom } from "@jtl/shared";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CreateTodoForm } from "./CreateTodoForm";
 
 function renderForm(store: ReturnType<typeof createStore>) {
@@ -53,5 +53,43 @@ describe("CreateTodoForm — assignee defaults from the shared Jotai atom", () =
     });
 
     expect(assigneeInput).toHaveValue("custom-user");
+  });
+});
+
+describe("CreateTodoForm — title validation announcement priority", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("announces the debounced live-typing title error politely, not via role=alert", () => {
+    vi.useFakeTimers();
+    renderForm(createStore());
+
+    // A title over 120 chars is non-empty, so the debounce effect's own
+    // guard (skip when empty) doesn't suppress it — this is the only way to
+    // trigger a live-typing error for this field.
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "a".repeat(121) } });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    const liveError = screen.getByText(/120 characters or fewer/i);
+    expect(liveError).toHaveAttribute("aria-live", "polite");
+    expect(liveError).not.toHaveAttribute("role", "alert");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows the submit-time title error via role=alert", async () => {
+    const user = userEvent.setup();
+    renderForm(createStore());
+
+    // Submitting with both fields empty also raises the assignee field's own
+    // (always-assertive) error, so query the title error by text specifically
+    // rather than by role — there are two role="alert" elements at this point.
+    await user.click(screen.getByRole("button", { name: /add to-do/i }));
+
+    const error = await screen.findByText("Title is required.");
+    expect(error).toHaveAttribute("role", "alert");
+    expect(error).not.toHaveAttribute("aria-live", "polite");
   });
 });

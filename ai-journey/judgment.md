@@ -363,10 +363,30 @@ proof the bug went unnoticed — that assertion was *validating the bug*, not
 catching it, because it never checked *which* ARIA role/live-region
 semantics were actually appropriate, only that some error text appeared.
 
-**What's still open**: `CreateTodoForm`'s debounced title-validation has the
-identical issue (same `FormField`, same `role="alert"` default) and was not
-in scope for this fix — the instruction named `CreateUserForm` specifically.
-`packages/todos`'s `CreateTodoForm.tsx` still passes no `errorPriority`, so
-it keeps today's (buggy) assertive-on-every-keystroke behavior. Flagging
-this explicitly rather than silently also fixing it (scope creep) or
-silently leaving the asymmetry undocumented.
+**What was still open, now closed**: `CreateTodoForm`'s debounced
+title-validation had the identical issue (same `FormField`, same
+`role="alert"` default) and was deliberately left unfixed above — the
+instruction named `CreateUserForm` specifically. It was fixed in a
+follow-up, same pattern, no reinvention: a sibling `titleErrorPriority`
+state tracks which of `fieldErrors.title`'s two writers (the debounced
+`useEffect` vs. `handleSubmit`) fired last, set to `"polite"`/`"assertive"`
+respectively, passed to the Title `FormField`'s `errorPriority`. One
+deliberate simplification from `CreateUserForm`'s version:  no
+assertive-fallback ternary, because `fieldErrors.title` only has those two
+writers here — `createTodo.isError` (the mutation-failure case) renders as
+its own separate alert paragraph below the fields, not through this same
+error slot, so there's no third source to guard against. The Assignee
+field was left untouched, as instructed — it has no debounced live-check,
+so its error only ever comes from submit and the default `"assertive"` is
+already correct there.
+
+Added two tests mirroring `CreateUserForm.test.tsx`'s new cases: a
+121-character title (non-empty, so the debounce effect's own
+skip-when-empty guard doesn't suppress it) triggers a live "must be 120
+characters or fewer" error with `aria-live="polite"` and no `role="alert"`;
+submitting both fields empty triggers a submit-time "Title is required."
+error with `role="alert"`. The submit-time test had to query by text rather
+than `findByRole("alert")`, since submitting both fields empty raises the
+Assignee field's own (always-assertive) error too — two `role="alert"`
+elements exist at that point, and `findByRole` throws on multiple matches.
+Verified: `typecheck`/`test` (19/19, up from 17)/`lint`/`build` all green.
