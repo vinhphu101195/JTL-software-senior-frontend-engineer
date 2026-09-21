@@ -4,14 +4,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createStore, Provider as JotaiProvider } from "jotai";
 import { selectedUserIdAtom } from "@jtl/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CreateTodoForm } from "./CreateTodoForm";
+import { CreateTodoForm, type CreateTodoFormProps } from "./CreateTodoForm";
 
-function renderForm(store: ReturnType<typeof createStore>) {
+function renderForm(store: ReturnType<typeof createStore>, props: CreateTodoFormProps = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
       <JotaiProvider store={store}>
-        <CreateTodoForm />
+        <CreateTodoForm {...props} />
       </JotaiProvider>
     </QueryClientProvider>,
   );
@@ -91,5 +91,51 @@ describe("CreateTodoForm — title validation announcement priority", () => {
     const error = await screen.findByText("Title is required.");
     expect(error).toHaveAttribute("role", "alert");
     expect(error).not.toHaveAttribute("aria-live", "polite");
+  });
+});
+
+describe("CreateTodoForm — validateAssignee (does this user id actually exist)", () => {
+  async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(screen.getByLabelText("Title"), "Write tests");
+    await user.type(screen.getByLabelText("Assignee (user ID)"), "some-id");
+    await user.click(screen.getByRole("button", { name: /add to-do|checking assignee/i }));
+  }
+
+  it("blocks submission and shows an error when validateAssignee resolves false, without ever calling mutate", async () => {
+    const validateAssignee = vi.fn().mockResolvedValue(false);
+    const user = userEvent.setup();
+    renderForm(createStore(), { validateAssignee });
+
+    await fillAndSubmit(user);
+
+    expect(validateAssignee).toHaveBeenCalledWith("some-id");
+    const error = await screen.findByText("No user found with this ID.");
+    expect(error).toHaveAttribute("role", "alert");
+    // The title field, valid, should show no error of its own.
+    expect(screen.queryByText("Title is required.")).not.toBeInTheDocument();
+  });
+
+  it("submits normally once validateAssignee resolves true", async () => {
+    const validateAssignee = vi.fn().mockResolvedValue(true);
+    const user = userEvent.setup();
+    renderForm(createStore(), { validateAssignee });
+
+    await fillAndSubmit(user);
+
+    expect(validateAssignee).toHaveBeenCalledWith("some-id");
+    await screen.findByText("Adding…"); // optimistic insert kicked off
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("does not call validateAssignee when the schema itself already rejects the submission", async () => {
+    const validateAssignee = vi.fn();
+    const user = userEvent.setup();
+    renderForm(createStore(), { validateAssignee });
+
+    // Both fields empty — Zod fails before validateAssignee would ever run.
+    await user.click(screen.getByRole("button", { name: /add to-do/i }));
+    await screen.findByText("Title is required.");
+
+    expect(validateAssignee).not.toHaveBeenCalled();
   });
 });

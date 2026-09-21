@@ -51,6 +51,23 @@ zero-dependency on users — it can be developed, tested, and reused without use
 existing at all — and puts the cross-feature knowledge exactly where cross-feature
 composition belongs: the app shell, not either feature package.
 
+**A gap this boundary created, found after the initial submission**: because
+`packages/todos` never checks anything about the assignee, creating a to-do with a
+made-up `assigneeId` used to succeed silently — the to-do would just never appear
+anywhere, since `UserDetailPage` only renders the to-do list after its `useUser`
+query for that id succeeds. The fix keeps the boundary intact rather than crossing
+it: `CreateTodoForm` takes an optional `validateAssignee?: (id) => Promise<boolean>`
+prop, and `NewTodoPage` (the composition root) supplies `@jtl/users`'s new
+`userExists()` — a single yes/no check, not a full `User` fetch, so `packages/todos`
+still never sees anything shaped like a user. `validateAssignee` runs *before* the
+optimistic `mutate()` call, which means every submission pays that round-trip
+up front, valid or not; that's deliberate, not an oversight — "does this id exist"
+is checkable in advance (an input-validation concern), unlike the network flakiness
+`useCreateTodo`'s optimistic rollback exists for (an operation-failure concern
+discovered only *during* the attempt), so the two don't belong in the same code
+path. See `ai-journey/judgment.md` for the full write-up, including why a `UserList`
+picker was considered and rejected as the alternative fix.
+
 ## Other notable decisions
 
 - **Jotai for one concern only**: `selectedUserIdAtom` lives in `packages/shared` (not

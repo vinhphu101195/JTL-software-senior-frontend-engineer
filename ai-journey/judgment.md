@@ -518,3 +518,83 @@ what happened both times. The fix isn't "be more careful" — it's structural:
 before writing any aggregate test count into a commit message or this file,
 run the itemized per-file count (as the table above does) rather than
 carrying forward a remembered total and adding to it.
+
+## Bug found by the user, not by me or either AI review pass: creating a to-do never checks the assignee is a real user
+
+The user caught this on `main` — I hadn't. `createTodoSchema` only checks
+`assigneeId` is a non-empty string; nothing anywhere checks it corresponds
+to an actual user. Because of that, creating a to-do with a made-up id used
+to succeed silently, and the to-do would become permanently invisible: it's
+stored, but `UserDetailPage` only renders `ToDoList` after its own `useUser`
+query for that id succeeds, so a fake id means the page bails out on the
+"user not found" error before the orphaned to-do is ever shown anywhere.
+Not a crash, not a visible error — just a to-do that's created and then
+effectively vanishes. Worth being honest that none of the tests written for
+`CreateTodoForm` up to this point exercised this at all — they cover the
+Zod-level "assignee id is non-empty" case, which is a different, narrower
+claim than "assignee id refers to someone real."
+
+**Why the fix isn't inside `packages/todos`:** the whole reason this gap
+exists is the same reason the users/todos boundary exists — `packages/todos`
+deliberately has zero knowledge of `User` entities, so it structurally
+cannot check "is this a real user" itself without importing `packages/users`
+and violating the one boundary this project has been most deliberate about
+(see "The users ↔ todos boundary" above). So the fix has to run through the
+composition root, the same way `resolveAssigneeName`/`onSelectUser` already
+do for other users↔todos concerns.
+
+**The fix**: `packages/users` gains one new, narrow public function —
+`userExists(id): Promise<boolean>` (wraps `apiGetUser`, catches its throw) —
+not a full `User` fetch, so `packages/todos` still never sees anything
+shaped like a user, just a yes/no answer. `CreateTodoForm` takes an optional
+`validateAssignee?: (id) => Promise<boolean>` prop, called after Zod
+validation passes and before `useCreateTodo`'s `mutate()`; if it resolves
+`false`, submission stops and `fieldErrors.assigneeId` gets set to "No user
+found with this ID." `NewTodoPage` supplies `userExists` as that prop. The
+prop is optional specifically so `CreateTodoForm` doesn't hard-require a
+validator — matches how `onSelectUser` and `resolveAssigneeName` are already
+optional elsewhere for the same reason: the package must stay usable
+(and testable) without wiring in the composition root at all.
+
+**Timing trade-off, made explicit rather than left implicit**: `validateAssignee`
+is awaited *before* `mutate()`, meaning every submission — valid or not —
+now pays that round-trip before the optimistic insert would otherwise appear
+instantly. I considered folding the check into `useCreateTodo`'s existing
+optimistic/rollback machinery instead (so the optimistic item would appear
+immediately and get rolled back on failed validation, the same way a network
+failure already does), and deliberately didn't: "does this id exist" is an
+*input-validation* concern — the answer is knowable before attempting
+anything, the same category as the existing Zod checks — while the
+optimistic-rollback path exists for *operation-failure* concerns discovered
+only during the attempt (the fake API's simulated network flakiness). Giving
+both the same UX treatment would blur a distinction worth keeping: a
+validation error should feel like "you need to fix this before trying," a
+rollback should feel like "that attempt didn't work, try again" — collapsing
+them into one code path would collapse that distinction in the UI too, not
+just in the implementation.
+
+**A `UserList` picker was considered and rejected as the alternative fix**:
+since `UserList` (an earlier addition to this project) already renders every
+existing user, replacing the free-text assignee field with a picker built
+from it would make "assignee must be real" trivially true by construction —
+no invalid id could ever be entered. Rejected because it would require
+`CreateTodoForm`/`NewTodoPage` to hold or fetch the *entire* user list to
+populate the picker, which directly undercuts the opaque-assigneeId
+reasoning that's been the core argument for the users/todos boundary
+throughout this project: a picker needs to know about users as a
+collection, not just check one id in isolation. `userExists()` asks the
+narrowest possible question through the composition root and stays
+consistent with that reasoning; a picker doesn't, even though it's the more
+common UX pattern for this kind of field.
+
+**Tests added**: `userExists.test.ts` (`packages/users`, 2 cases: resolves
+true when the underlying fetch succeeds, resolves false — not throws — when
+it fails). Three new cases in `CreateTodoForm.test.tsx`: blocks submission
+and shows the error when `validateAssignee` resolves false, without ever
+calling the mutation; submits normally when it resolves true; and —
+worth having as its own case — `validateAssignee` is never called at all
+when the Zod schema already rejects the submission (both fields empty),
+confirming the two checks run in the right order and the second doesn't
+fire needlessly. Verified: `typecheck`/`test` (28/28 — 2 shared + 13 users +
+13 todos, itemized directly from `pnpm test` output)/`lint`/`build` all
+green.

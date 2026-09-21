@@ -1,4 +1,5 @@
 export type { User } from "./types";
+export { userExists } from "./userExists";
 export { useUser, userQueryKey } from "./hooks/useUser";
 export { useUsers, usersQueryKey } from "./hooks/useUsers";
 export { useCreateUser } from "./hooks/useCreateUser";

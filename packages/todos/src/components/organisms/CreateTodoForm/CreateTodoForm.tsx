@@ -6,16 +6,34 @@ import {
   selectedUserIdAtom,
   useDebounce,
   useDefaultedFromAtom,
+  type EntityId,
 } from "@jtl/shared";
 import { useCreateTodo } from "../../../hooks/useCreateTodo";
 import { createTodoSchema } from "./createTodoForm.schema";
 
-export function CreateTodoForm() {
+export interface CreateTodoFormProps {
+  /**
+   * Verifies the assignee id corresponds to a real user before creating the
+   * to-do. Optional — omitting it keeps today's behavior (any non-empty
+   * string is accepted). Awaited before the optimistic `mutate()` call, so
+   * every submission pays this round-trip regardless of whether the id
+   * turns out valid — a deliberate trade-off (see ai-journey/judgment.md):
+   * "does this id exist" is an input-validation concern, checkable up
+   * front, not an operation-failure concern like the network flakiness
+   * `useCreateTodo`'s optimistic rollback already handles, so it doesn't
+   * belong in that same optimistic/rollback path.
+   *
+   * Injected by the composition root (apps/web) so this package never
+   * imports packages/users directly.
+   */
+  validateAssignee?: (assigneeId: EntityId) => Promise<boolean>;
+}
+
+export function CreateTodoForm({ validateAssignee }: CreateTodoFormProps) {
   const [title, setTitle] = useState("");
   const assignee = useDefaultedFromAtom(selectedUserIdAtom);
-  const [fieldErrors, setFieldErrors] = useState<
-    Record<string, string | undefined>
-  >({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
+  const [isValidatingAssignee, setIsValidatingAssignee] = useState(false);
   // Tracks whether fieldErrors.title came from the debounced live-typing
   // check (should announce politely, without interrupting) or a submit
   // attempt (should announce immediately, via role="alert") — both paths
@@ -40,7 +58,7 @@ export function CreateTodoForm() {
     setTitleErrorPriority("polite");
   }, [debouncedTitle]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const result = createTodoSchema.safeParse({
       title,
@@ -59,6 +77,17 @@ export function CreateTodoForm() {
       return;
     }
     setFieldErrors({});
+
+    if (validateAssignee) {
+      setIsValidatingAssignee(true);
+      const isValid = await validateAssignee(result.data.assigneeId);
+      setIsValidatingAssignee(false);
+      if (!isValid) {
+        setFieldErrors({ assigneeId: "No user found with this ID." });
+        return;
+      }
+    }
+
     createTodo.mutate(result.data, {
       onSuccess: () => setTitle(""),
     });
@@ -103,8 +132,8 @@ export function CreateTodoForm() {
           {createTodo.error.message}
         </p>
       )}
-      <Button type="submit" disabled={createTodo.isPending}>
-        {createTodo.isPending ? "Adding…" : "Add to-do"}
+      <Button type="submit" disabled={createTodo.isPending || isValidatingAssignee}>
+        {isValidatingAssignee ? "Checking assignee…" : createTodo.isPending ? "Adding…" : "Add to-do"}
       </Button>
     </form>
   );
