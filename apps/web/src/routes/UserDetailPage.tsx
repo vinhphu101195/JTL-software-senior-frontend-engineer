@@ -44,14 +44,21 @@ export function UserDetailPage({ userId }: UserDetailPageProps) {
         <h2 id="todos-heading" className="text-lg font-semibold text-slate-900">
           To-do items
         </h2>
-        {todosQuery.isPending && <p className="text-sm text-slate-600">Loading to-do items…</p>}
+        {todosQuery.isPending && (
+          <p className="text-sm text-slate-600">Loading to-do items…</p>
+        )}
         {todosQuery.isError && (
           <p role="alert" className="text-sm text-red-600">
             {todosQuery.error.message}
           </p>
         )}
         {todosQuery.data && (
-          <ToDoList todos={todosQuery.data} resolveAssigneeName={() => user.username} />
+          <ToDoList
+            todos={todosQuery.data}
+            resolveAssigneeName={(id) =>
+              id === user.id ? user.username : undefined
+            }
+          />
         )}
       </section>
     </div>
